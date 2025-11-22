@@ -1,0 +1,146 @@
+(async function () {
+  const red = "color:#ff4d4d;font-weight:bold;";
+  const yellow = "color:#ffcc00;font-weight:bold;";
+  const green = "color:#66cc66;font-weight:bold;";
+  const blue = "color:#3399ff;font-weight:bold;";
+  const grey = "color:#aaa;";
+
+  console.log("%c========== DELACON IMPACT ANALYSIS ==========", blue);
+
+  // 1. DETECT DELACON SCRIPTS
+  const delaconScripts = [...document.scripts]
+    .filter(s => /vxml4|plavxml|delacon/i.test(s.src))
+    .map(s => ({
+      src: s.src,
+      async: s.async,
+      defer: s.defer
+    }));
+
+  if (!delaconScripts.length) {
+    console.log("%cNo Delacon scripts detected on this page.", green);
+    return;
+  }
+
+  console.log(`\n%cFOUND ${delaconScripts.length} DELACON SCRIPTS`, blue);
+  delaconScripts.forEach(s => {
+    console.log(` • ${s.src}`);
+  });
+
+  // 2. NETWORK LOAD ANALYSIS
+  const entries = performance.getEntriesByType("resource")
+    .filter(r => /vxml4|plavxml|delacon/i.test(r.name));
+
+  console.log(`\n%cNETWORK LOAD DETAILS`, blue);
+
+  let totalDownload = 0;
+  entries.forEach(e => {
+    const time = e.responseEnd - e.startTime;
+    totalDownload += time;
+    console.log(
+      `• ${e.name.split("?")[0]} — %c${time.toFixed(2)}ms`,
+      time > 150 ? red : yellow
+    );
+  });
+
+  console.log(
+    `\n%cTOTAL DOWNLOAD TIME: ${totalDownload.toFixed(2)} ms`,
+    totalDownload > 500 ? red : totalDownload > 200 ? yellow : green
+  );
+
+  // 3. IS DELACON BLOCKING?
+  const blocking = delaconScripts.filter(s => !s.async && !s.defer);
+
+  console.log(`\n%cBLOCKING CHECK`, blue);
+  if (blocking.length) {
+    console.log(
+      `%c⚠ ${blocking.length} Delacon script(s) are blocking the page render.`,
+      red
+    );
+    blocking.forEach(s => console.log(" •", s.src));
+  } else {
+    console.log("%c✔ All Delacon scripts are async/defer — good.", green);
+  }
+
+  // 4. LOAD ORDER VS DOM READY
+  const domReady = performance.timing.domContentLoadedEventEnd;
+
+  console.log(`\n%cLOAD ORDER ANALYSIS`, blue);
+
+  entries.forEach(e => {
+    const loadedEarly = e.startTime < domReady;
+
+    console.log(
+      `• ${e.name.split("?")[0]} — loaded ${
+        loadedEarly ? "%cbefore DOMContentLoaded" : "%cafter DOMContentLoaded"
+      }`,
+      loadedEarly ? red : green
+    );
+  });
+
+  const earlyLoads = entries.filter(e => e.startTime < domReady).length;
+
+  if (earlyLoads) {
+    console.log(
+      `%c⚠ ${earlyLoads} Delacon scripts load before DOMContentLoaded — can delay experiment execution / increase FOOC.`,
+      red
+    );
+  } else {
+    console.log("%c✔ Delacon loads after DOM — safer for CRO.", green);
+  }
+
+  // 5. JS EXECUTION TIME
+  console.log(`\n%cJS EXECUTION COST (approx.)`, blue);
+
+  let delaconExec = 0;
+  const obs = new PerformanceObserver((list) => {
+    list.getEntries().forEach(entry => {
+      if (/vxml4|plavxml|delacon/.test(entry.name)) {
+        delaconExec += entry.duration;
+      }
+    });
+  });
+
+  obs.observe({ entryTypes: ["longtask", "script"] });
+
+  setTimeout(() => {
+    console.log(
+      `Estimated Delacon execution time: %c${delaconExec.toFixed(2)}ms`,
+      delaconExec > 50 ? red : delaconExec > 20 ? yellow : green
+    );
+
+    if (delaconExec > 50) {
+      console.log(
+        "%c⚠ Delacon JS seems heavy — may impact TTI, reduce experiment consistency.",
+        red
+      );
+    }
+
+    obs.disconnect();
+  }, 1000);
+
+  // 6. POLLING / REPEATED HIT DETECTION
+  console.log(`\n%cPOLLING DETECTION`, blue);
+
+  const frequent = entries.filter(e => {
+    const path = e.name.split("?")[0];
+    return entries.filter(x => x.name.split("?")[0] === path).length > 5;
+  });
+
+  if (frequent.length) {
+    console.log(
+      `%c⚠ Delacon is making repeated polling calls. This increases CPU + network load.`,
+      yellow
+    );
+    const grouped = [...new Set(frequent.map(e => e.name.split("?")[0]))];
+    grouped.forEach(u => console.log(" •", u));
+  } else {
+    console.log("%c✔ No excessive polling detected.", green);
+  }
+
+  // 7. SUMMARY
+  console.log(`\n%cSUMMARY`, blue);
+  console.log(`Delacon files: ${delaconScripts.length}`);
+  console.log(`Total download time: ${totalDownload.toFixed(2)} ms`);
+  console.log(`Blocking scripts: ${blocking.length}`);
+  console.log(`Loaded before DOM: ${earlyLoads}`);
+})();
