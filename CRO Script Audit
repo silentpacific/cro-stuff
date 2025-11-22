@@ -1,0 +1,118 @@
+(function () {
+  const red = "color:#ff4d4d;font-weight:bold;";
+  const yellow = "color:#ffcc00;font-weight:bold;";
+  const green = "color:#66cc66;font-weight:bold;";
+  const blue = "color:#3399ff;font-weight:bold;";
+  const grey = "color:#aaa;";
+
+  const scripts = [...document.scripts].map(s => ({
+    src: s.src.trim(),
+    async: s.async,
+    defer: s.defer
+  })).filter(s => s.src);
+
+  const urls = scripts.map(s => s.src);
+  const unique = [...new Set(urls)];
+
+  const classify = url => {
+    if (/gtm\.js|gtag|googletagmanager/i.test(url)) return "Tag Manager";
+    if (/google-analytics|analytics\.js|measurement|ga4/i.test(url)) return "Analytics";
+    if (/optimizely|vwo|experiment/i.test(url)) return "A/B Testing";
+    if (/delacon|vxml4\.plavxml/i.test(url)) return "Delacon Call Tracking";
+    if (/doubleclick|facebook|adsrvr|fbevents|afterpay|trustpilot|wistia/i.test(url))
+      return "Marketing / Ad Pixel";
+    if (/hotjar|session|recording/i.test(url)) return "Heatmap / Replay";
+    if (/maps\.googleapis/i.test(url)) return "Maps";
+    if (/bridgestone\.com\.au|sitecore|optimized-min/i.test(url)) return "Core Site Script";
+    return "Unknown";
+  };
+
+  const categories = {};
+  unique.forEach(url => (categories[classify(url)] ||= []).push(url));
+
+  const duplicates = unique.filter(u => urls.filter(x => x === u).length > 1);
+  const blocking = scripts.filter(s => !s.async && !s.defer);
+
+  console.log("%c========== CRO SCRIPT DANGER REPORT ==========", red);
+
+  // TAG MANAGERS
+  console.log("\n%cTAG MANAGERS", blue);
+  const tagMgrs = categories["Tag Manager"] || [];
+  console.log(
+    tagMgrs.length > 1
+      ? `%c⚠ ${tagMgrs.length} tag managers detected — HIGH RISK for conflicts`
+      : `%c✔ Single tag manager — OK`,
+    tagMgrs.length > 1 ? red : green
+  );
+  tagMgrs.forEach(u => console.log("  •", u));
+
+  // OPTIMIZELY
+  console.log("\n%cA/B TESTING", blue);
+  const ab = categories["A/B Testing"] || [];
+  console.log(
+    ab.length > 1
+      ? `%c⚠ Multiple A/B scripts — ensure they don’t double-load`
+      : `%c✔ A/B testing load looks normal`,
+    ab.length > 1 ? red : green
+  );
+  ab.forEach(u => console.log("  •", u));
+
+  // DELACON
+  console.log("\n%cDELACON CALL TRACKING", blue);
+  const delacon = categories["Delacon Call Tracking"] || [];
+  console.log(
+    delacon.length > 10
+      ? `%c⚠ ${delacon.length} Delacon scripts — expected, but heavy. Consider async/deferring or gating.`
+      : delacon.length > 0
+        ? `%cℹ Delacon present — check load timing vs. Optimizely`
+        : `%c✔ No Delacon scripts detected`,
+    delacon.length > 10 ? yellow : green
+  );
+  delacon.forEach(u => console.log("  •", u));
+
+  // DUPLICATES
+  console.log("\n%cDUPLICATE SCRIPTS", blue);
+  duplicates.length
+    ? console.log(`%c⚠ ${duplicates.length} duplicate scripts detected`, red)
+    : console.log(`%c✔ No duplicates detected`, green);
+  duplicates.forEach(u => console.log("  •", u));
+
+  // BLOCKING SCRIPTS
+  console.log("\n%cBLOCKING SCRIPTS", blue);
+  console.log(
+    blocking.length
+      ? `%c⚠ ${blocking.length} blocking scripts — impact on LCP & TTI`
+      : `%c✔ No render-blocking scripts`,
+    blocking.length ? yellow : green
+  );
+  blocking.forEach(s => console.log("  •", s.src));
+
+  // MARKETING PIXELS
+  console.log("\n%cMARKETING / AD PIXELS", blue);
+  const pixels = categories["Marketing / Ad Pixel"] || [];
+  console.log(
+    pixels.length > 10
+      ? `%c⚠ ${pixels.length} ad pixels — heavy marketing footprint`
+      : `%c✔ Pixel load acceptable`,
+    pixels.length > 10 ? yellow : green
+  );
+  pixels.forEach(u => console.log("  •", u));
+
+  // HEATMAPS
+  console.log("\n%cHEATMAPS / REPLAY", blue);
+  const heat = categories["Heatmap / Replay"] || [];
+  console.log(
+    heat.length > 1
+      ? `%c⚠ Multiple heatmap tools — avoid stacking Hotjar + others`
+      : `%c✔ Heatmap load normal`,
+    heat.length > 1 ? yellow : green
+  );
+  heat.forEach(u => console.log("  •", u));
+
+  // SUMMARY
+  console.log("\n%cSUMMARY", blue);
+  console.log(`%cTotal scripts: ${urls.length}`, grey);
+  console.log(`%cUnique: ${unique.length}`, grey);
+  console.log(`%cDuplicates: ${duplicates.length}`, grey);
+  console.log(`%cDelacon: ${delacon.length}`, grey);
+})();
