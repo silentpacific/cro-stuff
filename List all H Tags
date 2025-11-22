@@ -1,0 +1,16 @@
+const tags = ["h1", "h2", "h3"];
+
+let output = "";
+
+tags.forEach(tag => {
+  const nodes = [...document.querySelectorAll(tag)];
+  if (nodes.length === 0) return;
+
+  output += `\n${tag.toUpperCase()}\n`;
+  nodes.forEach(el => {
+    const text = el.innerText.trim().replace(/\s+/g, " ");
+    output += ` - ${text}\n`;
+  });
+});
+
+console.log(output);
