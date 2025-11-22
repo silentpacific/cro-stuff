@@ -1,0 +1,26 @@
+(function () {
+  const links = [...document.querySelectorAll("a")];
+
+  const externals = links.filter(a => a.hostname && a.hostname !== location.hostname);
+
+  // Group by hostname
+  const groups = externals.reduce((acc, a) => {
+    const host = a.hostname;
+    acc[host] = acc[host] || [];
+    acc[host].push(a.href);
+    return acc;
+  }, {});
+
+  // Build readable output
+  let output = "\n========== External Links Report ==========\n";
+  output += `Total external links: ${externals.length}\n\n`;
+
+  for (const host of Object.keys(groups)) {
+    output += `\n--- ${host} (${groups[host].length}) ---\n`;
+    groups[host].forEach((url, i) => {
+      output += `${i + 1}. ${url}\n`;
+    });
+  }
+
+  console.log(output);
+})();
